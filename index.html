@@ -441,6 +441,13 @@ button:focus-visible { outline: 3px solid #fff; outline-offset: 3px; }
 
   /* ---- Two-phone link (PeerJS, direct phone-to-phone) ---- */
   var peer = null, conn = null, retryT = null;
+  var ICE = [
+    { urls: "stun:stun.l.google.com:19302" },
+    { urls: "stun:stun1.l.google.com:19302" },
+    { urls: "turn:openrelay.metered.ca:80", username: "openrelayproject", credential: "openrelayproject" },
+    { urls: "turn:openrelay.metered.ca:443", username: "openrelayproject", credential: "openrelayproject" },
+    { urls: "turn:openrelay.metered.ca:443?transport=tcp", username: "openrelayproject", credential: "openrelayproject" }
+  ];
   function peerId() { return "naorscan-" + String(S.code || "").toLowerCase().replace(/[^a-z0-9-]/g, ""); }
   function setStatus(txt, ok) {
     var c = $("ctlStatus"); c.textContent = txt; c.className = ok ? "ok" : "";
@@ -452,6 +459,11 @@ button:focus-visible { outline: 3px solid #fff; outline-offset: 3px; }
     try { if (peer) peer.destroy(); } catch (e) {}
     conn = null; peer = null; room = null;
   }
+  function retryAll(msg, ms) {
+    setStatus(msg, false);
+    clearTimeout(retryT);
+    retryT = setTimeout(function () { if (running && S.role !== "solo") connectRoom(); }, ms || 4000);
+  }
   function onDisplayData(d) {
     if (!running || S.role !== "display") return;
     if (d && d.mode && d.key) render(d);
@@ -461,38 +473,53 @@ button:focus-visible { outline: 3px solid #fff; outline-offset: 3px; }
     if (typeof Peer === "undefined") { setStatus("אין חיבור: לא נטענה ספריית התקשורת. בדוק אינטרנט", false); return; }
     if (!S.code) { setStatus("חסר קוד חיבור", false); return; }
     setStatus("מתחבר…", false);
+    var opts = { config: { iceServers: ICE } };
+    var me;
     if (S.role === "display") {
-      peer = new Peer(peerId());
+      me = peer = new Peer(peerId(), opts);
       peer.on("open", function () { setStatus("מחכה לשלט", false); });
       peer.on("connection", function (c) {
+        if (me !== peer) return;
         conn = c;
         c.on("open", function () { setStatus("שלט מחובר", true); });
         c.on("data", onDisplayData);
-        c.on("close", function () { setStatus("השלט התנתק, מחכה לשלט", false); });
+        c.on("close", function () { if (conn === c) setStatus("השלט התנתק, מחכה לשלט", false); });
       });
+      peer.on("disconnected", function () { if (me === peer && running) { setStatus("איבדתי קשר עם השרת. מתחבר מחדש…", false); try { peer.reconnect(); } catch (e) { retryAll("מתחבר מחדש…", 3000); } } });
       peer.on("error", function (err) {
+        if (me !== peer) return;
         var t = err && err.type;
-        if (t === "unavailable-id") setStatus("הקוד כבר בשימוש. סגור את הדף בטלפונים אחרים ונסה שוב", false);
-        else setStatus("שגיאת חיבור (" + t + ")", false);
+        if (t === "unavailable-id") retryAll("הקוד עדיין רשום מהפעם הקודמת. מנסה שוב…", 4000);
+        else retryAll("שגיאת חיבור (" + t + "). מנסה שוב…", 4000);
       });
     } else {
-      peer = new Peer();
+      me = peer = new Peer(opts);
       peer.on("open", function () { dial(); });
+      peer.on("disconnected", function () { if (me === peer && running) { try { peer.reconnect(); } catch (e) { retryAll("מתחבר מחדש…", 3000); } } });
       peer.on("error", function (err) {
+        if (me !== peer) return;
         var t = err && err.type;
-        if (t === "peer-unavailable") { setStatus("המציג עוד לא פתוח. מנסה שוב…", false); retryT = setTimeout(dial, 3000); }
-        else setStatus("שגיאת חיבור (" + t + ")", false);
+        if (t === "peer-unavailable") { setStatus("המציג עוד לא פתוח. מנסה שוב…", false); clearTimeout(retryT); retryT = setTimeout(dial, 3000); }
+        else retryAll("שגיאת חיבור (" + t + "). מנסה שוב…", 4000);
       });
     }
   }
   function dial() {
     if (!peer || peer.destroyed || !running) return;
+    if (peer.disconnected) { try { peer.reconnect(); } catch (e) {} }
     try { if (conn) conn.close(); } catch (e) {}
-    conn = peer.connect(peerId(), { reliable: true });
-    conn.on("open", function () { setStatus("מציג מחובר", true); room = conn; });
-    conn.on("close", function () { room = null; setStatus("החיבור נותק. מנסה שוב…", false); retryT = setTimeout(dial, 3000); });
-    conn.on("error", function () { setStatus("שגיאת חיבור. מנסה שוב…", false); retryT = setTimeout(dial, 3000); });
+    var c = peer.connect(peerId(), { reliable: true });
+    conn = c;
+    var openTimer = setTimeout(function () { if (conn === c && !c.open) { setStatus("לא מצליח להתחבר למציג. מנסה שוב…", false); try { c.close(); } catch (e) {} retryT = setTimeout(dial, 3000); } }, 8000);
+    c.on("open", function () { clearTimeout(openTimer); setStatus("מציג מחובר", true); room = c; });
+    c.on("close", function () { clearTimeout(openTimer); if (conn !== c) return; room = null; setStatus("החיבור נותק. מנסה שוב…", false); retryT = setTimeout(dial, 3000); });
+    c.on("error", function () { clearTimeout(openTimer); if (conn !== c) return; setStatus("שגיאת חיבור. מנסה שוב…", false); retryT = setTimeout(dial, 3000); });
   }
+  document.addEventListener("visibilitychange", function () {
+    if (document.visibilityState !== "visible" || !running || S.role === "solo") return;
+    var ok = S.role === "display" ? (peer && !peer.disconnected && !peer.destroyed) : (room && room.open);
+    if (!ok) connectRoom();
+  });
 
   function start() {
     running = true; count = 0; last = null; busy = false;

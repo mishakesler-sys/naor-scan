@@ -1,0 +1,613 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>סריקה לנאור</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;600;800&display=swap" rel="stylesheet">
+<style>
+/* Layout idea: dark pitch-night setup screen with one big start button; run screen is a full-bleed cue field. */
+:root {
+  --bg: #0d1412;
+  --panel: #16211d;
+  --line: #27382f;
+  --text: #eaf3ee;
+  --muted: #8fa89b;
+  --accent: #7be08a;
+  --accent-ink: #06210d;
+  --red: #e53935;
+  --blue: #1e66f5;
+  --green: #2fb344;
+  --yellow: #ffd60a;
+  --font: "Heebo", system-ui, -apple-system, "Segoe UI", Arial, sans-serif;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 17px;
+  line-height: 1.45;
+  -webkit-tap-highlight-color: transparent;
+}
+h1 { font-size: 28px; font-weight: 800; margin: 0; text-wrap: balance; }
+h2 { font-size: 16px; font-weight: 600; margin: 0 0 10px; color: var(--muted); }
+.wrap {
+  max-width: 560px;
+  margin: 0 auto;
+  padding: max(20px, env(safe-area-inset-top)) 16px max(28px, env(safe-area-inset-bottom));
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.lead { color: var(--muted); margin: 4px 0 0; }
+.card {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 16px;
+}
+.seg { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
+.seg label {
+  display: flex; align-items: center; justify-content: center;
+  min-height: 48px; padding: 8px 10px; border-radius: 10px;
+  border: 1px solid var(--line); background: var(--bg);
+  font-weight: 600; text-align: center; cursor: pointer;
+}
+.seg input { position: absolute; opacity: 0; pointer-events: none; }
+.seg input:checked + span { color: var(--accent); }
+.seg label:has(input:checked) { border-color: var(--accent); background: #12301f; }
+.seg label:has(input:focus-visible) { outline: 2px solid var(--accent); outline-offset: 2px; }
+.row { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 14px; }
+.row:first-of-type { margin-top: 0; }
+.row .name { flex: 1; }
+.row .val { min-width: 64px; text-align: left; font-variant-numeric: tabular-nums; color: var(--accent); font-weight: 600; }
+input[type=range] { width: 100%; accent-color: var(--accent); height: 32px; margin: 4px 0 0; }
+.field-block { margin-top: 14px; }
+.field-block:first-of-type { margin-top: 0; }
+.field-head { display: flex; justify-content: space-between; align-items: baseline; }
+select, input[type=text] {
+  font: inherit; color: var(--text); background: var(--bg);
+  border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; min-height: 44px;
+}
+.map { display: flex; flex-direction: column; gap: 8px; }
+.map-row { display: flex; align-items: center; gap: 10px; }
+.sw {
+  flex: none; width: 44px; height: 44px; border-radius: 10px; display: grid; place-items: center;
+  font-weight: 800; font-size: 22px; color: #fff; border: 1px solid rgba(255,255,255,.15);
+}
+.sw svg { width: 26px; height: 26px; }
+.map-row input[type=text] { flex: 1; min-width: 0; }
+.toggle { display: flex; align-items: center; gap: 10px; min-height: 44px; cursor: pointer; }
+.toggle input { width: 22px; height: 22px; accent-color: var(--accent); }
+button {
+  font: inherit; font-weight: 800; cursor: pointer; border: 0; border-radius: 14px;
+}
+button:focus-visible { outline: 3px solid #fff; outline-offset: 3px; }
+.start {
+  min-height: 64px; font-size: 22px; background: var(--accent); color: var(--accent-ink);
+}
+.start:active { transform: scale(.99); }
+.tip { font-size: 15px; color: var(--muted); }
+.tip b { color: var(--text); font-weight: 600; }
+
+/* Run screen */
+#run {
+  position: fixed; inset: 0; display: none; background: #000; z-index: 10;
+  user-select: none; -webkit-user-select: none; touch-action: manipulation;
+}
+#run.on { display: block; }
+#cue {
+  position: absolute; inset: 0; display: none; flex-direction: column;
+  align-items: center; justify-content: center; gap: 2vh;
+}
+#cue.on { display: flex; }
+#cue svg.arrow { width: 62vmin; height: 62vmin; }
+#cue .num { font-size: 58vmin; font-weight: 800; line-height: 1; }
+#cue .num.small { font-size: 26vmin; }
+#cue .act { font-size: 9vmin; font-weight: 800; }
+#idle {
+  position: absolute; inset: 0; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: 12px; color: #31453a; font-weight: 800;
+  font-size: 7vmin; pointer-events: none;
+}
+#idle small { font-size: 3.6vmin; font-weight: 600; }
+#stop {
+  position: absolute; top: max(12px, env(safe-area-inset-top)); inset-inline-start: 12px;
+  min-height: 48px; padding: 0 20px; background: rgba(255,255,255,.12); color: #fff; font-size: 16px;
+  z-index: 2;
+}
+#count {
+  position: absolute; bottom: max(12px, env(safe-area-inset-bottom)); inset-inline-end: 16px;
+  color: #3d5547; font-variant-numeric: tabular-nums; font-weight: 600; z-index: 2; pointer-events: none;
+}
+#ctl {
+  position: absolute; inset: 0; display: none; flex-direction: column; gap: 12px;
+  padding: 72px 16px max(16px, env(safe-area-inset-bottom));
+}
+#ctl.on { display: flex; }
+#ctlStatus { text-align: center; font-weight: 600; color: var(--muted); min-height: 24px; }
+#ctlStatus.ok { color: var(--accent); }
+#ctlGrid { flex: 1; display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+#ctlGrid button {
+  display: grid; place-items: center; border-radius: 16px; color: #fff; font-size: 9vmin;
+  border: 1px solid rgba(255,255,255,.2); padding: 0;
+}
+#ctlGrid button svg { width: 14vmin; height: 14vmin; }
+#ctlGrid button:active { filter: brightness(1.3); transform: scale(.98); }
+#ctlRand { min-height: 80px; background: var(--accent); color: var(--accent-ink); font-size: 24px; }
+#dispStatus {
+  position: absolute; top: max(24px, env(safe-area-inset-top)); inset-inline-end: 16px;
+  color: #3d5547; font-weight: 600; font-size: 14px; pointer-events: none; z-index: 2;
+}
+#codeBadge {
+  position: absolute; bottom: max(14px, env(safe-area-inset-bottom)); inset-inline-start: 16px;
+  font-weight: 800; font-variant-numeric: tabular-nums; color: #5f7d6b; z-index: 3; pointer-events: none;
+  font-size: 18px;
+}
+#codeBadge.big { font-size: 9vmin; color: #9fd6ac; }
+.ver { font-size: 13px; color: var(--muted); }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+</style>
+</head>
+<body>
+
+<main class="wrap" id="setup">
+  <header>
+    <h1>סריקה לנאור <span class="ver">גרסה 2</span></h1>
+    <p class="lead">מניחים את הטלפון מאחורי נאור או לצידו. הצבע מבזיק, הוא מציץ מעבר לכתף ומחליט על פעולה.</p>
+  </header>
+
+  <section class="card" aria-labelledby="h-role">
+    <h2 id="h-role">איזה טלפון זה</h2>
+    <div class="seg" id="roleSeg" style="grid-template-columns:repeat(3,1fr)">
+      <label><input type="radio" name="role" value="solo"><span>לבד</span></label>
+      <label><input type="radio" name="role" value="display"><span>מציג (אצל נאור)</span></label>
+      <label><input type="radio" name="role" value="controller"><span>שלט (אצלי)</span></label>
+    </div>
+    <p class="tip" id="roleTip" style="margin:10px 0 0"></p>
+    <div class="field-block" id="codeBox">
+      <label for="code" style="display:block;margin-bottom:6px">קוד חיבור: 4 הספרות שמופיעות על מסך המציג</label>
+      <input type="text" id="code" dir="ltr" inputmode="numeric" pattern="[0-9]*" maxlength="4" placeholder="1234" autocapitalize="off" autocomplete="off" spellcheck="false" style="width:100%">
+    </div>
+  </section>
+
+  <section class="card" id="cardType" aria-labelledby="h-type">
+    <h2 id="h-type">מה מופיע על המסך</h2>
+    <div class="seg" id="modeSeg">
+      <label><input type="radio" name="mode" value="color"><span>צבעים</span></label>
+      <label><input type="radio" name="mode" value="arrow"><span>חיצים</span></label>
+      <label><input type="radio" name="mode" value="number"><span>מספרים</span></label>
+      <label><input type="radio" name="mode" value="colorNumber"><span>צבע + מספר</span></label>
+    </div>
+    <div class="field-block">
+      <div class="field-head"><label for="n">כמה אפשרויות</label><span class="val" id="nVal" style="color:var(--accent);font-weight:600"></span></div>
+      <input type="range" id="n" min="2" max="4" step="1">
+    </div>
+  </section>
+
+  <section class="card" id="cardTime" aria-labelledby="h-time">
+    <h2 id="h-time">קצב</h2>
+    <div class="seg" id="trigSeg" style="margin-bottom:14px">
+      <label><input type="radio" name="trig" value="auto"><span>אוטומטי</span></label>
+      <label><input type="radio" name="trig" value="manual"><span>בהקשה על המסך</span></label>
+    </div>
+    <div class="field-block">
+      <div class="field-head"><label for="dur">כמה זמן הצבע נראה</label><span class="val" id="durVal" style="color:var(--accent);font-weight:600"></span></div>
+      <input type="range" id="dur" min="0.2" max="3" step="0.1">
+    </div>
+    <div id="autoOnly">
+      <div class="field-block">
+        <div class="field-head"><label for="gmin">הפסקה הכי קצרה</label><span class="val" id="gminVal" style="color:var(--accent);font-weight:600"></span></div>
+        <input type="range" id="gmin" min="1" max="10" step="0.5">
+      </div>
+      <div class="field-block">
+        <div class="field-head"><label for="gmax">הפסקה הכי ארוכה</label><span class="val" id="gmaxVal" style="color:var(--accent);font-weight:600"></span></div>
+        <input type="range" id="gmax" min="2" max="15" step="0.5">
+      </div>
+    </div>
+  </section>
+
+  <section class="card" id="cardMap" aria-labelledby="h-map">
+    <h2 id="h-map">מה עושים על כל סימן</h2>
+    <div class="map" id="map"></div>
+    <label class="toggle" style="margin-top:10px"><input type="checkbox" id="showAct"><span>להציג את הפעולה על המסך (מומלץ לכבות, שיזכור בעצמו)</span></label>
+  </section>
+
+  <button class="start" id="start" type="button">התחל</button>
+  <p class="tip"><b>לפני שמתחילים:</b> להגדיר בהגדרות הטלפון שהמסך לא ייכבה אוטומטית, ולהניח אותו במקום שנאור צריך להציץ אליו.</p>
+</main>
+
+<div id="run" aria-live="polite">
+  <button id="stop" type="button">עצור</button>
+  <div id="idle"><span id="idleMain">מוכן</span><small id="idleSub"></small></div>
+  <div id="cue"></div>
+  <div id="ctl">
+    <div id="ctlStatus"></div>
+    <div id="ctlGrid"></div>
+    <button id="ctlRand" type="button">סימן אקראי</button>
+  </div>
+  <div id="dispStatus"></div>
+  <div id="codeBadge"></div>
+  <div id="count"></div>
+</div>
+
+<script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+<script>
+(function () {
+  "use strict";
+
+  var COLORS = [
+    { key: "red", hex: "#e53935", ink: "#fff", name: "אדום", act: "מסירה אחורה" },
+    { key: "blue", hex: "#1e66f5", ink: "#fff", name: "כחול", act: "פנייה שמאלה" },
+    { key: "green", hex: "#2fb344", ink: "#fff", name: "ירוק", act: "פנייה ימינה" },
+    { key: "yellow", hex: "#ffd60a", ink: "#1a1500", name: "צהוב", act: "מסירה קדימה" }
+  ];
+  var ARROWS = [
+    { key: "up", rot: 0, name: "למעלה", act: "קדימה" },
+    { key: "right", rot: 90, name: "ימינה", act: "ימינה" },
+    { key: "down", rot: 180, name: "למטה", act: "אחורה" },
+    { key: "left", rot: 270, name: "שמאלה", act: "שמאלה" }
+  ];
+  var NUMBERS = [
+    { key: "n1", n: 1, act: "מסירה קצרה" },
+    { key: "n2", n: 2, act: "מסירה ארוכה" },
+    { key: "n3", n: 3, act: "פנייה" },
+    { key: "n4", n: 4, act: "בעיטה" }
+  ];
+  var ARROW_SVG = '<svg class="arrow" viewBox="0 0 100 100" aria-hidden="true"><path d="M50 8 L88 48 H64 V92 H36 V48 H12 Z" fill="currentColor"/></svg>';
+
+  var DEFAULTS = { role: "solo", mode: "color", n: 4, trig: "auto", dur: 1.0, gmin: 2.5, gmax: 6, showAct: false, code: "", acts: {} };
+  var KEY = "naor-scan-v1";
+  var S = loadSettings();
+
+  function loadSettings() {
+    var s = JSON.parse(JSON.stringify(DEFAULTS));
+    try {
+      var raw = localStorage.getItem(KEY);
+      if (raw) {
+        var p = JSON.parse(raw);
+        for (var k in p) { if (Object.prototype.hasOwnProperty.call(s, k)) s[k] = p[k]; }
+      }
+    } catch (e) { /* storage unavailable, use defaults */ }
+    return s;
+  }
+  function saveSettings() { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {} }
+
+  var $ = function (id) { return document.getElementById(id); };
+
+  function itemsFor(mode) {
+    if (mode === "arrow") return ARROWS;
+    if (mode === "number") return NUMBERS;
+    return COLORS;
+  }
+  function activeItems() { return itemsFor(S.mode).slice(0, S.n); }
+  function actOf(it) { return (S.acts[it.key] !== undefined ? S.acts[it.key] : it.act); }
+
+  function renderMap() {
+    var box = $("map");
+    box.innerHTML = "";
+    activeItems().forEach(function (it) {
+      var row = document.createElement("div");
+      row.className = "map-row";
+      var sw = document.createElement("div");
+      sw.className = "sw";
+      if (it.hex) { sw.style.background = it.hex; sw.style.color = it.ink; sw.textContent = ""; sw.setAttribute("aria-label", it.name); }
+      else if (it.rot !== undefined) { sw.style.background = "#223a2d"; sw.style.color = "#fff"; sw.innerHTML = ARROW_SVG; sw.firstChild.style.transform = "rotate(" + it.rot + "deg)"; sw.setAttribute("aria-label", it.name); }
+      else { sw.style.background = "#223a2d"; sw.textContent = it.n; }
+      var inp = document.createElement("input");
+      inp.type = "text"; inp.id = "act-" + it.key; inp.value = actOf(it);
+      inp.setAttribute("aria-label", "פעולה עבור " + (it.name || it.n));
+      inp.addEventListener("input", function () { S.acts[it.key] = inp.value; saveSettings(); });
+      row.appendChild(sw); row.appendChild(inp);
+      box.appendChild(row);
+    });
+  }
+
+  function fmt(x) { return String(x).replace(/\.0$/, ""); }
+  function syncUI() {
+    var r = document.querySelector('input[name=role][value="' + S.role + '"]'); if (r) r.checked = true;
+    var disp = S.role === "display";
+    $("codeBox").style.display = S.role === "controller" ? "" : "none";
+    $("code").value = S.code;
+    $("cardType").style.display = disp ? "none" : "";
+    $("cardTime").style.display = disp ? "none" : "";
+    $("cardMap").style.display = disp ? "none" : "";
+    $("start").textContent = disp ? "התחל להציג" : (S.role === "controller" ? "התחל שלט" : "התחל");
+    $("roleTip").textContent = S.role === "display" ? "הטלפון של נאור. לוחצים התחל, ועל המסך יופיע קוד של 4 ספרות. מקלידים אותו בשלט."
+      : S.role === "controller" ? "הטלפון שלך. לוחצים על צבע (או על אקראי) והוא מופיע אצל נאור. מקלידים את הקוד שמופיע על מסך המציג. שני הטלפונים צריכים אינטרנט."
+      : "טלפון אחד שמציג לבד.";
+    var m = document.querySelector('input[name=mode][value="' + S.mode + '"]'); if (m) m.checked = true;
+    var t = document.querySelector('input[name=trig][value="' + S.trig + '"]'); if (t) t.checked = true;
+    $("n").value = S.n; $("nVal").textContent = S.n;
+    $("dur").value = S.dur; $("durVal").textContent = fmt(S.dur) + " שנ׳";
+    $("gmin").value = S.gmin; $("gminVal").textContent = fmt(S.gmin) + " שנ׳";
+    $("gmax").value = S.gmax; $("gmaxVal").textContent = fmt(S.gmax) + " שנ׳";
+    $("showAct").checked = !!S.showAct;
+    $("autoOnly").style.display = S.trig === "auto" ? "" : "none";
+    renderMap();
+  }
+
+  document.querySelectorAll("input[name=role]").forEach(function (el) {
+    el.addEventListener("change", function () { S.role = el.value; saveSettings(); syncUI(); });
+  });
+  document.querySelectorAll("input[name=mode]").forEach(function (el) {
+    el.addEventListener("change", function () { S.mode = el.value; saveSettings(); syncUI(); });
+  });
+  document.querySelectorAll("input[name=trig]").forEach(function (el) {
+    el.addEventListener("change", function () { S.trig = el.value; saveSettings(); syncUI(); });
+  });
+  $("n").addEventListener("input", function () { S.n = +this.value; saveSettings(); syncUI(); });
+  $("dur").addEventListener("input", function () { S.dur = +this.value; saveSettings(); syncUI(); });
+  $("gmin").addEventListener("input", function () {
+    S.gmin = +this.value; if (S.gmax < S.gmin) S.gmax = S.gmin; saveSettings(); syncUI();
+  });
+  $("gmax").addEventListener("input", function () {
+    S.gmax = +this.value; if (S.gmin > S.gmax) S.gmin = S.gmax; saveSettings(); syncUI();
+  });
+  $("code").addEventListener("input", function () { S.code = this.value.replace(/[^0-9]/g, ""); this.value = S.code; saveSettings(); });
+  $("showAct").addEventListener("change", function () { S.showAct = this.checked; saveSettings(); });
+
+  /* ---- Run ---- */
+  var run = $("run"), cue = $("cue"), idle = $("idle");
+  var running = false, tNext = null, tHide = null, last = null, count = 0, lock = null, busy = false;
+  var room = null, peersCount = 0;
+
+  function rand(a, b) { return a + Math.random() * (b - a); }
+  function pick() {
+    var items = activeItems(), it, tries = 0;
+    do { it = items[Math.floor(Math.random() * items.length)]; tries++; }
+    while (items.length > 1 && last && it.key === last && tries < 10);
+    last = it.key;
+    return it;
+  }
+  function escapeHtml(s) { return String(s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
+
+  /* Build a cue description (sent to the display phone in remote mode). */
+  function makePayload(it) {
+    return {
+      mode: S.mode, key: it.key,
+      num: S.mode === "colorNumber" ? 1 + Math.floor(Math.random() * 9) : (it.n || 0),
+      dur: S.dur,
+      act: S.showAct ? actOf(it) : "",
+      id: Date.now() + "-" + Math.random().toString(36).slice(2, 6)
+    };
+  }
+
+  /* Draw a cue on this screen. */
+  function render(p) {
+    var items = itemsFor(p.mode), it = items[0], i;
+    for (i = 0; i < items.length; i++) { if (items[i].key === p.key) { it = items[i]; break; } }
+    var html = "", bg = "#000", ink = "#fff";
+    if (p.mode === "color") { bg = it.hex; ink = it.ink; }
+    else if (p.mode === "colorNumber") { bg = it.hex; ink = it.ink; html += '<div class="num">' + p.num + "</div>"; }
+    else if (p.mode === "arrow") { bg = "#0a0a0a"; ink = "#7be08a"; html += ARROW_SVG.replace('class="arrow"', 'class="arrow" style="transform:rotate(' + it.rot + 'deg)"'); }
+    else if (p.mode === "number") { bg = "#0a0a0a"; ink = "#ffd60a"; html += '<div class="num">' + it.n + "</div>"; }
+    if (p.act) html += '<div class="act">' + escapeHtml(p.act) + "</div>";
+    cue.style.background = bg; cue.style.color = ink; cue.innerHTML = html;
+    cue.classList.add("on");
+    idle.style.display = "none";
+    count++; $("count").textContent = count;
+    clearTimeout(tHide);
+    tHide = setTimeout(hideCue, Math.max(0.1, p.dur) * 1000);
+  }
+  function hideCue() {
+    cue.classList.remove("on"); cue.innerHTML = "";
+    idle.style.display = "";
+    if (S.role === "solo") {
+      busy = false;
+      if (running && S.trig === "auto") scheduleNext();
+    }
+  }
+  function scheduleNext() {
+    clearTimeout(tNext);
+    tNext = setTimeout(function () { fire(null); }, rand(S.gmin, Math.max(S.gmin, S.gmax)) * 1000);
+  }
+
+  /* Fire one cue. key = a specific item, or null for random. */
+  function fire(key) {
+    if (!running) return;
+    var it = null, items = activeItems(), i;
+    if (key) { for (i = 0; i < items.length; i++) { if (items[i].key === key) it = items[i]; } last = key; }
+    if (!it) it = pick();
+    var p = makePayload(it);
+    if (S.role === "controller") {
+      if (room && room.open) { try { room.send(p); } catch (e) {} }
+      count++; $("count").textContent = count;
+      flashButton(it.key);
+      if (S.trig === "auto") scheduleNext();
+    } else {
+      if (busy && S.role === "solo") return;
+      busy = true;
+      render(p);
+    }
+  }
+  function flashButton(key) {
+    var b = document.querySelector('#ctlGrid button[data-key="' + key + '"]');
+    if (!b) return;
+    b.style.outline = "4px solid #fff";
+    setTimeout(function () { b.style.outline = ""; }, 250);
+  }
+
+  function buildControls() {
+    var g = $("ctlGrid");
+    g.innerHTML = "";
+    activeItems().forEach(function (it) {
+      var b = document.createElement("button");
+      b.type = "button"; b.setAttribute("data-key", it.key);
+      if (it.hex) { b.style.background = it.hex; b.style.color = it.ink; b.setAttribute("aria-label", it.name); }
+      else if (it.rot !== undefined) { b.style.background = "#223a2d"; b.innerHTML = ARROW_SVG; b.firstChild.style.transform = "rotate(" + it.rot + "deg)"; b.setAttribute("aria-label", it.name); }
+      else { b.style.background = "#223a2d"; b.textContent = it.n; }
+      b.addEventListener("click", function (e) { e.stopPropagation(); fire(it.key); });
+      g.appendChild(b);
+    });
+  }
+
+  /* ---- Two-phone link (PeerJS, direct phone-to-phone) ---- */
+  var peer = null, conn = null, retryT = null;
+  var ICE = [
+    { urls: "stun:stun.l.google.com:19302" },
+    { urls: "stun:stun1.l.google.com:19302" },
+    { urls: "turn:openrelay.metered.ca:80", username: "openrelayproject", credential: "openrelayproject" },
+    { urls: "turn:openrelay.metered.ca:443", username: "openrelayproject", credential: "openrelayproject" },
+    { urls: "turn:openrelay.metered.ca:443?transport=tcp", username: "openrelayproject", credential: "openrelayproject" }
+  ];
+  function peerId() { return "naorscan-v2-" + String(S.code || "").replace(/[^0-9]/g, ""); }
+  function setStatus(txt, ok) {
+    var c = $("ctlStatus"); c.textContent = txt; c.className = ok ? "ok" : "";
+    $("dispStatus").textContent = txt;
+  }
+  function closeLink() {
+    clearTimeout(retryT);
+    try { if (conn) conn.close(); } catch (e) {}
+    try { if (peer) peer.destroy(); } catch (e) {}
+    conn = null; peer = null; room = null;
+  }
+  function retryAll(msg, ms) {
+    setStatus(msg, false);
+    clearTimeout(retryT);
+    retryT = setTimeout(function () { if (running && S.role !== "solo") connectRoom(); }, ms || 4000);
+  }
+  function onDisplayData(d) {
+    if (!running || S.role !== "display") return;
+    if (d && d.mode && d.key) render(d);
+  }
+  function connectRoom() {
+    closeLink();
+    showBadge();
+    if (typeof Peer === "undefined") { setStatus("אין חיבור: לא נטענה ספריית התקשורת. בדוק אינטרנט", false); return; }
+    if (!S.code) { setStatus("חסר קוד חיבור", false); return; }
+    setStatus("מתחבר…", false);
+    var opts = { config: { iceServers: ICE } };
+    var me;
+    if (S.role === "display") {
+      me = peer = new Peer(peerId(), opts);
+      peer.on("open", function () { setStatus("מחכה לשלט", false); });
+      peer.on("connection", function (c) {
+        if (me !== peer) return;
+        conn = c;
+        c.on("open", function () { setStatus("שלט מחובר", true); });
+        c.on("data", onDisplayData);
+        c.on("close", function () { if (conn === c) setStatus("השלט התנתק, מחכה לשלט", false); });
+      });
+      peer.on("disconnected", function () { if (me === peer && running) { setStatus("איבדתי קשר עם השרת. מתחבר מחדש…", false); try { peer.reconnect(); } catch (e) { retryAll("מתחבר מחדש…", 3000); } } });
+      peer.on("error", function (err) {
+        if (me !== peer) return;
+        var t = err && err.type;
+        if (t === "unavailable-id") { newDisplayCode(); retryAll("מחליף קוד…", 500); }
+        else retryAll("שגיאת חיבור (" + t + "). מנסה שוב…", 4000);
+      });
+    } else {
+      me = peer = new Peer(opts);
+      peer.on("open", function () { dial(); });
+      peer.on("disconnected", function () { if (me === peer && running) { try { peer.reconnect(); } catch (e) { retryAll("מתחבר מחדש…", 3000); } } });
+      peer.on("error", function (err) {
+        if (me !== peer) return;
+        var t = err && err.type;
+        if (t === "peer-unavailable") { setStatus("המציג עוד לא פתוח. מנסה שוב…", false); clearTimeout(retryT); retryT = setTimeout(dial, 3000); }
+        else retryAll("שגיאת חיבור (" + t + "). מנסה שוב…", 4000);
+      });
+    }
+  }
+  function dial() {
+    if (!peer || peer.destroyed || !running) return;
+    if (peer.disconnected) { try { peer.reconnect(); } catch (e) {} }
+    try { if (conn) conn.close(); } catch (e) {}
+    var c = peer.connect(peerId(), { reliable: true });
+    conn = c;
+    var openTimer = setTimeout(function () { if (conn === c && !c.open) { setStatus("לא מצליח להתחבר למציג. מנסה שוב…", false); try { c.close(); } catch (e) {} retryT = setTimeout(dial, 3000); } }, 8000);
+    c.on("open", function () { clearTimeout(openTimer); setStatus("מציג מחובר", true); room = c; });
+    c.on("close", function () { clearTimeout(openTimer); if (conn !== c) return; room = null; setStatus("החיבור נותק. מנסה שוב…", false); retryT = setTimeout(dial, 3000); });
+    c.on("error", function () { clearTimeout(openTimer); if (conn !== c) return; setStatus("שגיאת חיבור. מנסה שוב…", false); retryT = setTimeout(dial, 3000); });
+  }
+  document.addEventListener("visibilitychange", function () {
+    if (document.visibilityState !== "visible" || !running || S.role === "solo") return;
+    var ok = S.role === "display" ? (peer && !peer.disconnected && !peer.destroyed) : (room && room.open);
+    if (!ok) connectRoom();
+  });
+
+  function newDisplayCode() {
+    S.code = String(1000 + Math.floor(Math.random() * 9000));
+    showBadge();
+  }
+  function showBadge() {
+    var b = $("codeBadge");
+    if (S.role === "solo") { b.textContent = ""; b.className = ""; return; }
+    b.textContent = "קוד " + (S.code || "—");
+    b.className = S.role === "display" ? "big" : "";
+  }
+  var hb = null;
+  function heartbeat() {
+    clearInterval(hb);
+    hb = setInterval(function () {
+      if (!running || S.role === "solo") return;
+      if (!peer || peer.destroyed) { connectRoom(); return; }
+      if (peer.disconnected) { try { peer.reconnect(); } catch (e) { connectRoom(); } }
+    }, 8000);
+  }
+
+  function start() {
+    running = true; count = 0; last = null; busy = false;
+    $("count").textContent = "";
+    $("setup").style.display = "none";
+    run.classList.add("on");
+    $("ctl").classList.remove("on"); $("dispStatus").textContent = "";
+    $("idleMain").textContent = "מוכן";
+    if (S.role === "display") {
+      $("idleSub").textContent = "הסימנים יגיעו מהשלט";
+    } else if (S.role === "controller") {
+      $("idleMain").textContent = "";
+      $("idleSub").textContent = "";
+      buildControls();
+      $("ctlStatus").textContent = "מתחבר…";
+      $("ctl").classList.add("on");
+    } else {
+      $("idleSub").textContent = S.trig === "auto" ? "הסימן הראשון יופיע בקרוב" : "הקש על המסך להצגת סימן";
+    }
+    if (S.role !== "controller") {
+      try {
+        if (navigator.wakeLock && navigator.wakeLock.request) {
+          navigator.wakeLock.request("screen").then(function (l) { lock = l; }).catch(function () {});
+        }
+      } catch (e) {}
+    }
+    if (S.role === "display") newDisplayCode();
+    showBadge();
+    if (S.role === "controller" && !S.code) { setStatus("הקלד בהגדרות את הקוד מהמציג", false); }
+    else if (S.role !== "solo") { connectRoom(); heartbeat(); }
+    if (S.role !== "display" && S.trig === "auto") scheduleNext();
+  }
+  function stop() {
+    running = false; busy = false;
+    clearTimeout(tNext); clearTimeout(tHide);
+    cue.classList.remove("on"); cue.innerHTML = ""; idle.style.display = "";
+    $("ctl").classList.remove("on");
+    run.classList.remove("on");
+    $("setup").style.display = "";
+    closeLink(); clearInterval(hb); $("codeBadge").textContent = "";
+    try { if (lock && lock.release) lock.release(); } catch (e) {}
+    lock = null;
+  }
+
+  $("start").addEventListener("click", start);
+  $("stop").addEventListener("click", function (e) { e.stopPropagation(); stop(); });
+  $("ctlRand").addEventListener("click", function (e) { e.stopPropagation(); fire(null); });
+  run.addEventListener("click", function (e) {
+    if (e.target.id === "stop") return;
+    if (S.role === "solo" && S.trig === "manual") fire(null);
+  });
+  document.addEventListener("keydown", function (e) {
+    if (!running) return;
+    if (e.key === "Escape") stop();
+    else if (S.role !== "display" && S.trig === "manual" && (e.key === " " || e.key === "Enter")) { e.preventDefault(); fire(null); }
+  });
+
+  syncUI();
+})();
+</script>
+</body>
+</html>

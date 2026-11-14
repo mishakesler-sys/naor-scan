@@ -144,6 +144,13 @@ button:focus-visible { outline: 3px solid #fff; outline-offset: 3px; }
   position: absolute; top: max(24px, env(safe-area-inset-top)); inset-inline-end: 16px;
   color: #3d5547; font-weight: 600; font-size: 14px; pointer-events: none; z-index: 2;
 }
+#codeBadge {
+  position: absolute; bottom: max(14px, env(safe-area-inset-bottom)); inset-inline-start: 16px;
+  font-weight: 800; font-variant-numeric: tabular-nums; color: #5f7d6b; z-index: 3; pointer-events: none;
+  font-size: 18px;
+}
+#codeBadge.big { font-size: 9vmin; color: #9fd6ac; }
+.ver { font-size: 13px; color: var(--muted); }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
 </style>
 </head>
@@ -151,7 +158,7 @@ button:focus-visible { outline: 3px solid #fff; outline-offset: 3px; }
 
 <main class="wrap" id="setup">
   <header>
-    <h1>סריקה לנאור</h1>
+    <h1>סריקה לנאור <span class="ver">גרסה 2</span></h1>
     <p class="lead">מניחים את הטלפון מאחורי נאור או לצידו. הצבע מבזיק, הוא מציץ מעבר לכתף ומחליט על פעולה.</p>
   </header>
 
@@ -164,8 +171,8 @@ button:focus-visible { outline: 3px solid #fff; outline-offset: 3px; }
     </div>
     <p class="tip" id="roleTip" style="margin:10px 0 0"></p>
     <div class="field-block" id="codeBox">
-      <label for="code" style="display:block;margin-bottom:6px">קוד חיבור (אותו קוד בשני הטלפונים)</label>
-      <input type="text" id="code" dir="ltr" autocapitalize="off" autocomplete="off" spellcheck="false" style="width:100%">
+      <label for="code" style="display:block;margin-bottom:6px">קוד חיבור: 4 הספרות שמופיעות על מסך המציג</label>
+      <input type="text" id="code" dir="ltr" inputmode="numeric" pattern="[0-9]*" maxlength="4" placeholder="1234" autocapitalize="off" autocomplete="off" spellcheck="false" style="width:100%">
     </div>
   </section>
 
@@ -225,6 +232,7 @@ button:focus-visible { outline: 3px solid #fff; outline-offset: 3px; }
     <button id="ctlRand" type="button">סימן אקראי</button>
   </div>
   <div id="dispStatus"></div>
+  <div id="codeBadge"></div>
   <div id="count"></div>
 </div>
 
@@ -253,7 +261,7 @@ button:focus-visible { outline: 3px solid #fff; outline-offset: 3px; }
   ];
   var ARROW_SVG = '<svg class="arrow" viewBox="0 0 100 100" aria-hidden="true"><path d="M50 8 L88 48 H64 V92 H36 V48 H12 Z" fill="currentColor"/></svg>';
 
-  var DEFAULTS = { role: "solo", mode: "color", n: 4, trig: "auto", dur: 1.0, gmin: 2.5, gmax: 6, showAct: false, code: "naor-m4q8z1", acts: {} };
+  var DEFAULTS = { role: "solo", mode: "color", n: 4, trig: "auto", dur: 1.0, gmin: 2.5, gmax: 6, showAct: false, code: "", acts: {} };
   var KEY = "naor-scan-v1";
   var S = loadSettings();
 
@@ -304,14 +312,14 @@ button:focus-visible { outline: 3px solid #fff; outline-offset: 3px; }
   function syncUI() {
     var r = document.querySelector('input[name=role][value="' + S.role + '"]'); if (r) r.checked = true;
     var disp = S.role === "display";
-    $("codeBox").style.display = S.role === "solo" ? "none" : "";
+    $("codeBox").style.display = S.role === "controller" ? "" : "none";
     $("code").value = S.code;
     $("cardType").style.display = disp ? "none" : "";
     $("cardTime").style.display = disp ? "none" : "";
     $("cardMap").style.display = disp ? "none" : "";
     $("start").textContent = disp ? "התחל להציג" : (S.role === "controller" ? "התחל שלט" : "התחל");
-    $("roleTip").textContent = S.role === "display" ? "הטלפון של נאור. מניחים אותו ופותחים. הוא יציג מה שהשלט שולח."
-      : S.role === "controller" ? "הטלפון שלך. לוחצים על צבע (או על אקראי) והוא מופיע אצל נאור. שני הטלפונים צריכים אינטרנט ואותו קוד חיבור."
+    $("roleTip").textContent = S.role === "display" ? "הטלפון של נאור. לוחצים התחל, ועל המסך יופיע קוד של 4 ספרות. מקלידים אותו בשלט."
+      : S.role === "controller" ? "הטלפון שלך. לוחצים על צבע (או על אקראי) והוא מופיע אצל נאור. מקלידים את הקוד שמופיע על מסך המציג. שני הטלפונים צריכים אינטרנט."
       : "טלפון אחד שמציג לבד.";
     var m = document.querySelector('input[name=mode][value="' + S.mode + '"]'); if (m) m.checked = true;
     var t = document.querySelector('input[name=trig][value="' + S.trig + '"]'); if (t) t.checked = true;
@@ -341,7 +349,7 @@ button:focus-visible { outline: 3px solid #fff; outline-offset: 3px; }
   $("gmax").addEventListener("input", function () {
     S.gmax = +this.value; if (S.gmin > S.gmax) S.gmin = S.gmax; saveSettings(); syncUI();
   });
-  $("code").addEventListener("input", function () { S.code = this.value.trim(); saveSettings(); });
+  $("code").addEventListener("input", function () { S.code = this.value.replace(/[^0-9]/g, ""); this.value = S.code; saveSettings(); });
   $("showAct").addEventListener("change", function () { S.showAct = this.checked; saveSettings(); });
 
   /* ---- Run ---- */
@@ -448,7 +456,7 @@ button:focus-visible { outline: 3px solid #fff; outline-offset: 3px; }
     { urls: "turn:openrelay.metered.ca:443", username: "openrelayproject", credential: "openrelayproject" },
     { urls: "turn:openrelay.metered.ca:443?transport=tcp", username: "openrelayproject", credential: "openrelayproject" }
   ];
-  function peerId() { return "naorscan-" + String(S.code || "").toLowerCase().replace(/[^a-z0-9-]/g, ""); }
+  function peerId() { return "naorscan-v2-" + String(S.code || "").replace(/[^0-9]/g, ""); }
   function setStatus(txt, ok) {
     var c = $("ctlStatus"); c.textContent = txt; c.className = ok ? "ok" : "";
     $("dispStatus").textContent = txt;
@@ -470,6 +478,7 @@ button:focus-visible { outline: 3px solid #fff; outline-offset: 3px; }
   }
   function connectRoom() {
     closeLink();
+    showBadge();
     if (typeof Peer === "undefined") { setStatus("אין חיבור: לא נטענה ספריית התקשורת. בדוק אינטרנט", false); return; }
     if (!S.code) { setStatus("חסר קוד חיבור", false); return; }
     setStatus("מתחבר…", false);
@@ -489,7 +498,7 @@ button:focus-visible { outline: 3px solid #fff; outline-offset: 3px; }
       peer.on("error", function (err) {
         if (me !== peer) return;
         var t = err && err.type;
-        if (t === "unavailable-id") retryAll("הקוד עדיין רשום מהפעם הקודמת. מנסה שוב…", 4000);
+        if (t === "unavailable-id") { newDisplayCode(); retryAll("מחליף קוד…", 500); }
         else retryAll("שגיאת חיבור (" + t + "). מנסה שוב…", 4000);
       });
     } else {
@@ -521,6 +530,26 @@ button:focus-visible { outline: 3px solid #fff; outline-offset: 3px; }
     if (!ok) connectRoom();
   });
 
+  function newDisplayCode() {
+    S.code = String(1000 + Math.floor(Math.random() * 9000));
+    showBadge();
+  }
+  function showBadge() {
+    var b = $("codeBadge");
+    if (S.role === "solo") { b.textContent = ""; b.className = ""; return; }
+    b.textContent = "קוד " + (S.code || "—");
+    b.className = S.role === "display" ? "big" : "";
+  }
+  var hb = null;
+  function heartbeat() {
+    clearInterval(hb);
+    hb = setInterval(function () {
+      if (!running || S.role === "solo") return;
+      if (!peer || peer.destroyed) { connectRoom(); return; }
+      if (peer.disconnected) { try { peer.reconnect(); } catch (e) { connectRoom(); } }
+    }, 8000);
+  }
+
   function start() {
     running = true; count = 0; last = null; busy = false;
     $("count").textContent = "";
@@ -546,7 +575,10 @@ button:focus-visible { outline: 3px solid #fff; outline-offset: 3px; }
         }
       } catch (e) {}
     }
-    if (S.role !== "solo") connectRoom();
+    if (S.role === "display") newDisplayCode();
+    showBadge();
+    if (S.role === "controller" && !S.code) { setStatus("הקלד בהגדרות את הקוד מהמציג", false); }
+    else if (S.role !== "solo") { connectRoom(); heartbeat(); }
     if (S.role !== "display" && S.trig === "auto") scheduleNext();
   }
   function stop() {
@@ -556,7 +588,7 @@ button:focus-visible { outline: 3px solid #fff; outline-offset: 3px; }
     $("ctl").classList.remove("on");
     run.classList.remove("on");
     $("setup").style.display = "";
-    closeLink();
+    closeLink(); clearInterval(hb); $("codeBadge").textContent = "";
     try { if (lock && lock.release) lock.release(); } catch (e) {}
     lock = null;
   }
